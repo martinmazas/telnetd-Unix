@@ -6,10 +6,11 @@
 
 
 
-// int socket;
+int skt;
 char *close_client = "Close client";
 
-int createServerSocket(char *port) {
+int createServerSocket(char *port) 
+{
     struct sockaddr_in server;
     int portInt = atoi(port);
 
@@ -20,7 +21,6 @@ int createServerSocket(char *port) {
         printf("Could not create a socket\n");
         exit(-1);
     }
-    // printf("Socket created");
 
     //sockaddr_in info
     server.sin_family = AF_INET;
@@ -41,11 +41,32 @@ int createServerSocket(char *port) {
         exit(-1);
     }
 
-    
+    printf("Server bind in port %d\n", portInt);
+    return serverSocket;
 }
 
-int main(int argc, char * argv[])
+int clientListener(int socket, fd_set *readfds)
 {
     
+}
+int main(int argc, char * argv[])
+{
+    if( argc <= 1)
+    {
+        printf("HELP: Must add the port number\n");
+        exit(-1);
+    }
+
+    char * port = argv[1];
+    skt = createServerSocket(port);
+
+    if(socket != -1)
+    {
+        printf("There is a socket");
+        // while(1)
+        // {
+        //     //Need to add listener
+        // }
+    }
     return 0;
 }
