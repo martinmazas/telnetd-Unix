@@ -45,9 +45,22 @@ int createServerSocket(char *port)
     return serverSocket;
 }
 
-int clientListener(int socket, fd_set *readfds)
+int acceptConnection(int socket, fd_set *readfds)
 {
+    struct sockaddr_in client;
+    int clientSocket;
+
+    //accept connection
+    clientSocket = accept(socket, (struct sockaddr *)&client, sizeof(struct sockaddr_in));
+    if(clientSocket == -1)
+    {
+        printf("Cannot accept the connection");
+        exit(-1);
+    }
+
+    //Receive message from client
     
+
 }
 int main(int argc, char * argv[])
 {
