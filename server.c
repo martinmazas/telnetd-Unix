@@ -8,6 +8,7 @@
 
 
 #define QUEUE_LEN 20
+#define MAX_LEN 30
 
 int skt;
 int total_clients = 0;
@@ -64,7 +65,7 @@ int createServerSocket(char *port)
 int acceptConnection(int socket, fd_set *readfds)
 {
     struct sockaddr_in clientIn;
-    int sockaddr_size =sizeof(struct sockaddr_in);
+    int sockaddr_size = sizeof(struct sockaddr_in);
     int clientSocket;
     int max_sd, sd, activity, new_socket;
 
@@ -113,17 +114,59 @@ int acceptConnection(int socket, fd_set *readfds)
     return max_sd;
 }
 
+// Execute the wanted command
+int runCommand(int client, char *message, int message_size)
+{
+    FILE *fp;
+    char buffer[MAX_LEN], command[MAX_LEN];
+    char *str = NULL, *tmp = NULL;
+    int str_size, size =1;
+
+
+    pid_t pid = fork();
+    if(pid < 0)
+    {
+        perror("fork");
+        return 1; 
+    }
+    if(pid == 0)
+    {
+        //Command format
+        sprintf(command, "%s 2>&1 ", message);
+        fp = popen(command, "r");
+        while(fgets(buffer, sizeof(buffer), fp) != NULL)
+        {
+            str_size = strlen(buffer);
+            tmp = realloc(str, str_size + size);
+            if(tmp == NULL)
+            {
+                perror("buffer size");
+                return 1;
+            }
+            else
+            {
+                str = tmp;
+            }
+            strcpy(str + size - 1, buffer);
+            size += str_size;
+        }
+        send(client, str, size - 1, 0);
+        pclose(fp);
+        return 0;
+    }
+}
+
 void stringHandler(fd_set *readfds)
 {
     int client_socket, data_size;
-    char buffer[256]; 
+    char buffer[MAX_LEN]; 
 
     for(int i = 0; i < total_clients; i++)
     {
         client_socket = client_socks[i];
         if(FD_ISSET(client_socket, readfds))
         {
-            data_size = recv(client_socket, buffer, 256, 0);
+            data_size = recv(client_socket, buffer, MAX_LEN, 0);
 
             if(data_size == 0)
             {
@@ -141,11 +184,29 @@ void stringHandler(fd_set *readfds)
             }
             else
             {
-               printf("Need to change\n");
+               runCommand(client_socket, buffer, data_size);
             }
             
         }   
     }
+}
+
+
+void signalHandler(int signal)
+{
+    int closed_connections = 0;
+    for(int i = 0; i<total_clients; i++ )
+    {
+        if(client_socks[i] != 0)
+        {
+            closed_connections++;
+            close(client_socks[i]);
+        }
+    }
+    printf("Total number of closed clients: %d\n", closed_connections);
+    close(skt);
+    printf("Closed server\n");
+    exit(1);
 }
 
 
@@ -160,17 +221,21 @@ int main(int argc, char * argv[])
     }
 
     fd_set readfds;
-
+    
     char * port = argv[1];
     skt = createServerSocket(port);
 
     if(skt != -1)
     {
+        signal(SIGINT, signalHandler);
+        signal(SIGABRT,signalHandler);
         while(1)
         {
             acceptConnection(skt, &readfds);
             stringHandler(&readfds);
         }
     }
+
+    close(skt);
     return 0;
 }
