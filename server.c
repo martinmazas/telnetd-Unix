@@ -1,18 +1,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <string.h>
 #include <errno.h>
-
+#include <signal.h>
 
 #define QUEUE_LEN 20
-#define MAX_LEN 30
+#define MAX_LEN 1024
 
 int skt;
 int total_clients = 0;
-int client_socks[QUEUE_LEN];
+int client_socks[QUEUE_LEN] = {0};
 char *close_client = "Close client";
 
 //End the connection with the client 
@@ -27,18 +28,19 @@ void endConnection(int client, int client_number)
 //Create a server side socket on given port
 int createServerSocket(char *port) 
 {
-    struct sockaddr_in server;
     int portInt = atoi(port);
+    int serverSocket;
 
     //Create the socket
-    int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if(serverSocket < -1)
+    serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if(serverSocket < 0)
     {
         perror("socket");
         return 1;
     }
 
     //sockaddr_in info
+    struct sockaddr_in server = {0};
     server.sin_family = AF_INET;
     server.sin_port = htons(portInt);
     server.sin_addr.s_addr = INADDR_ANY;
@@ -65,9 +67,8 @@ int createServerSocket(char *port)
 int acceptConnection(int socket, fd_set *readfds)
 {
     struct sockaddr_in clientIn;
-    int sockaddr_size = sizeof(struct sockaddr_in);
-    int clientSocket;
-    int max_sd, sd, activity, new_socket;
+    int sockaddr_size = sizeof(clientIn);
+    int max_sd, new_socket, activity;
 
     //Clear fd_set
     FD_ZERO(readfds);
@@ -78,7 +79,7 @@ int acceptConnection(int socket, fd_set *readfds)
 
     for(int i = 0; i < total_clients; i++ )
     {
-        sd = client_socks[i];
+        int sd = client_socks[i];
 
         if(sd > 0)
         {
@@ -101,10 +102,10 @@ int acceptConnection(int socket, fd_set *readfds)
     if(FD_ISSET(socket, readfds))
     {
         //accept connection
-        if((new_socket = accept(socket, (struct sockaddr *)&clientIn, &sockaddr_size)) < 0)
+        if((new_socket = accept(socket, (struct sockaddr *)&clientIn, (socklen_t*)&sockaddr_size)) < 0)
         {
             perror("accept");
-            return 1;
+            exit(1);
         }
         client_socks[total_clients++] = new_socket;
         printf("New client connection from IP: %s in port %d\n", inet_ntoa(clientIn.sin_addr), ntohs(clientIn.sin_port));
@@ -118,9 +119,10 @@ int acceptConnection(int socket, fd_set *readfds)
 int runCommand(int client, char *message, int message_size)
 {
     FILE *fp;
-    char buffer[MAX_LEN], command[MAX_LEN];
+    char buffer[MAX_LEN], command[MAX_LEN] = {0};
     char *str = NULL, *tmp = NULL;
-    int str_size, size =1;
+    unsigned int str_size;
+    unsigned int size = 1;
 
 
     pid_t pid = fork();
@@ -150,20 +152,21 @@ int runCommand(int client, char *message, int message_size)
             strcpy(str + size - 1, buffer);
             size += str_size;
         }
-        send(client, str, size - 1, 0);
+        send(client, str, size -1, 0);
+        
         pclose(fp);
-        return 0;
+        exit(0);
     }
 }
 
 void stringHandler(fd_set *readfds)
 {
-    int client_socket, data_size;
+    int data_size;
     char buffer[MAX_LEN]; 
 
     for(int i = 0; i < total_clients; i++)
     {
-        client_socket = client_socks[i];
+        int client_socket = client_socks[i];
         if(FD_ISSET(client_socket, readfds))
         {
             data_size = recv(client_socket, buffer, MAX_LEN, 0);
@@ -176,18 +179,18 @@ void stringHandler(fd_set *readfds)
             if(data_size)
             {
                 buffer[data_size - 2] ='\0';
-            }
 
-            if(strcmp(close_client, buffer) == 0)
-            {
-                endConnection(client_socket, i);
-            }
-            else
-            {
-               runCommand(client_socket, buffer, data_size);
-            }
+                if(strcmp(close_client, buffer) == 0)
+                {
+                    endConnection(client_socket, i);
+                }
+                else
+                {
+                    runCommand(client_socket, buffer, data_size);
+                }
             
-        }   
+            }   
+        }
     }
 }
 
@@ -205,7 +208,7 @@ void signalHandler(int signal)
     }
     printf("Total number of closed clients: %d\n", closed_connections);
     close(skt);
-    printf("Closed server\n");
+    printf("Server closed\n");
     exit(1);
 }
 
@@ -214,6 +217,7 @@ void signalHandler(int signal)
 
 int main(int argc, char * argv[])
 {
+
     if( argc <= 1)
     {
         printf("HELP: Must add the port number\n");
@@ -221,14 +225,12 @@ int main(int argc, char * argv[])
     }
 
     fd_set readfds;
-    
-    char * port = argv[1];
-    skt = createServerSocket(port);
+    signal(SIGINT, signalHandler);
+    signal(SIGABRT,signalHandler);
+    skt = createServerSocket(argv[1]);
 
     if(skt != -1)
     {
-        signal(SIGINT, signalHandler);
-        signal(SIGABRT,signalHandler);
         while(1)
         {
             acceptConnection(skt, &readfds);
