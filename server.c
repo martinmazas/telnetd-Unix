@@ -191,7 +191,7 @@ void stringHandler(fd_set *readfds)
     }
 }
 
-
+//Closing client connections when the server is closed
 void signalHandler(int signal)
 {
     int closed_connections = 0;
