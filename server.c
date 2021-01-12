@@ -9,7 +9,7 @@
 #include <signal.h>
 
 #define QUEUE_LEN 20
-#define MAX_LEN 1024
+#define MAX_LEN 100
 
 int skt;
 int total_clients = 0;
@@ -25,7 +25,7 @@ void endConnection(int client, int client_number)
 }
 
 
-//Create a server side socket on given port
+//Create a server side socket on request port
 int createServerSocket(char *port) 
 {
     int portInt = atoi(port);
@@ -115,7 +115,7 @@ int acceptConnection(int socket, fd_set *readfds)
     return max_sd;
 }
 
-// Execute the wanted command
+// Execute the requested command
 int runCommand(int client, char *message, int message_size)
 {
     FILE *fp;
@@ -159,6 +159,7 @@ int runCommand(int client, char *message, int message_size)
     }
 }
 
+//Handling the string from client
 void stringHandler(fd_set *readfds)
 {
     int data_size;
