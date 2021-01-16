@@ -18,9 +18,10 @@ struct sockaddr_in client;
 void sendMessageServer()
 {
     char buffer[MAX_LEN];
-    char* newBuff = NULL;
+    char *newBuff = NULL;
     int i, nrecv;
     unsigned int brecv = 0;
+
     for (;;)
     {
         bzero(buffer, sizeof(buffer));
@@ -30,7 +31,7 @@ void sendMessageServer()
             ;
         buffer[i - 1] = '\0';
 
-        //Send the buffer
+        //Send the command
         if (write(skt, buffer, sizeof(buffer)) < 0)
         {
             perror("write");
@@ -46,50 +47,30 @@ void sendMessageServer()
         }
         bzero(buffer, sizeof(buffer));
 
-        nrecv = recv(skt, buffer, sizeof(buffer), 0);
-        // printf("%s", buffer);
-        if(nrecv < 0)
+        nrecv = recv(skt, buffer, sizeof(buffer) + 1, 0);
+
+        if (nrecv < 0)
         {
             perror("recv");
             exit(1);
         }
-        // else if(nrecv == MAX_LEN)
-        // {
-           
-        printf("%s",buffer);
-        while(nrecv >= MAX_LEN)
+
+        printf("%s", buffer);
+        //if the buffer is bigger that MAX_LEN keep reading and printing the info
+        while (nrecv >= MAX_LEN)
         {
-            if((nrecv = recv(skt, buffer, sizeof(buffer), 0)) > 0)
+            bzero(buffer, sizeof(buffer));
+            if ((nrecv = recv(skt, buffer, sizeof(buffer) + 1, 0)) > 0)
             {
                 printf("%s", buffer);
             }
             else
             {
-                break;
+                perror("recv");
+                exit(1);
             }
-            
         }
-        
-        // {
-        
-        // }
         printf("\n");
-            
-        // }
-        
-        // if(nrecv < 0)
-        // {
-        //     
-        // }
-        // printf("%s\n", buffer);
-
-        // if ((nrecv = recv(skt, buffer, sizeof(buffer), 0)) < 0)
-        // {
-        //     perror("recv");
-        //     exit(1);
-        // }
-        // printf("%d\n", nrecv);
-        // printf("Server reply: \n%s\n", newBuff);
     }
 }
 
@@ -121,7 +102,6 @@ int main(int argc, char *argv[])
     server.sin_addr.s_addr = inet_addr("127.0.0.1");
     bzero(&client.sin_zero, 8);
 
-    // skt = createClientSocket(argv[1]);
     if (connect(skt, (struct sockaddr *)&server, sizeof(server)) < 0)
     {
         perror("connect");
